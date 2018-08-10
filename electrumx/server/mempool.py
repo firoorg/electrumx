@@ -16,6 +16,7 @@ from collections import defaultdict
 import attr
 from aiorpcx import TaskGroup, run_in_thread, sleep
 
+from electrumx.lib.tx import MINUS_1
 from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash
 from electrumx.lib.util import class_logger, chunks
 from electrumx.server.db import UTXO
@@ -172,6 +173,9 @@ class MemPool(object):
             in_pairs = []
             try:
                 for prevout in tx.prevouts:
+                    # Skip generation like prevouts
+                    if prevout[1] == MINUS_1:
+                        continue
                     utxo = utxo_map.get(prevout)
                     if not utxo:
                         prev_hash, prev_index = prevout
@@ -187,10 +191,8 @@ class MemPool(object):
 
             # Save the in_pairs, compute the fee and accept the TX
             tx.in_pairs = tuple(in_pairs)
-            # Avoid negative fees if dealing with generation-like transactions
-            # because some in_parts would be missing
-            tx.fee = max(0, (sum(v for _, v in tx.in_pairs) -
-                             sum(v for _, v in tx.out_pairs)))
+            tx.fee = max(0, (sum(v for hashX, v in tx.in_pairs) -
+                        sum(v for hashX, v in tx.out_pairs)))
             txs[hash] = tx
 
             for hashX, value in itertools.chain(tx.in_pairs, tx.out_pairs):
@@ -293,7 +295,8 @@ class MemPool(object):
         # generation-like.
         prevouts = tuple(prevout for tx in tx_map.values()
                          for prevout in tx.prevouts
-                         if prevout[0] not in all_hashes)
+                         if (prevout[0] not in all_hashes and 
+                         prevout[1] != MINUS_1))
         utxos = await self.api.lookup_utxos(prevouts)
         utxo_map = {prevout: utxo for prevout, utxo in zip(prevouts, utxos)}
 
