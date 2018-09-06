@@ -16,8 +16,8 @@ from collections import defaultdict
 import attr
 from aiorpcx import TaskGroup, run_in_thread, sleep
 
+from electrumx.lib.tx import MINUS_1
 from electrumx.lib.hash import hash_to_hex_str, hex_str_to_hash
-from electrumx.lib.tx import is_gen_outpoint
 from electrumx.lib.util import class_logger, chunks
 from electrumx.server.db import UTXO
 
@@ -174,7 +174,7 @@ class MemPool(object):
             try:
                 for prevout in tx.prevouts:
                     # Skip generation like prevouts
-                    if is_gen_outpoint(*prevout):
+                    if prevout[1] == MINUS_1:
                         continue
                     utxo = utxo_map.get(prevout)
                     if not utxo:
@@ -191,10 +191,8 @@ class MemPool(object):
 
             # Save the in_pairs, compute the fee and accept the TX
             tx.in_pairs = tuple(in_pairs)
-            # Avoid negative fees if dealing with generation-like transactions
-            # because some in_parts would be missing
-            tx.fee = max(0, (sum(v for _, v in tx.in_pairs) -
-                             sum(v for _, v in tx.out_pairs)))
+            tx.fee = max(0, (sum(v for hashX, v in tx.in_pairs) -
+                        sum(v for hashX, v in tx.out_pairs)))
             txs[hash] = tx
 
             for hashX, value in itertools.chain(tx.in_pairs, tx.out_pairs):
@@ -277,8 +275,10 @@ class MemPool(object):
                     continue
                 tx, tx_size = deserializer(raw_tx).read_tx_and_vsize()
                 # Convert the inputs and outputs into (hashX, value) pairs
+                # Drop generation-like inputs from MemPoolTx.prevouts
                 txin_pairs = tuple((txin.prev_hash, txin.prev_idx)
-                                   for txin in tx.inputs)
+                                   for txin in tx.inputs
+                                   if not txin.is_generation())
                 txout_pairs = tuple((to_hashX(txout.pk_script), txout.value)
                                     for txout in tx.outputs)
                 txs[hash] = MemPoolTx(txin_pairs, None, txout_pairs,
@@ -295,8 +295,8 @@ class MemPool(object):
         # generation-like.
         prevouts = tuple(prevout for tx in tx_map.values()
                          for prevout in tx.prevouts
-                         if (prevout[0] not in all_hashes and
-                             not is_gen_outpoint(*prevout)))
+                         if (prevout[0] not in all_hashes and 
+                         prevout[1] != MINUS_1))
         utxos = await self.api.lookup_utxos(prevouts)
         utxo_map = {prevout: utxo for prevout, utxo in zip(prevouts, utxos)}
 

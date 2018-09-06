@@ -18,7 +18,7 @@ from functools import partial
 from aiorpcx import TaskGroup, run_in_thread
 
 import electrumx
-from electrumx.lib.tx import is_gen_outpoint
+from electrumx.lib.tx import MINUS_1
 from electrumx.server.daemon import DaemonError
 from electrumx.lib.hash import hash_to_hex_str, HASHX_LEN
 from electrumx.lib.util import chunks, class_logger
@@ -413,8 +413,9 @@ class BlockProcessor(object):
 
             # Spend the inputs
             for txin in tx.inputs:
-                if is_gen_outpoint(txin.prev_hash, txin.prev_idx):
+                if txin.prev_idx == MINUS_1:
                     continue
+
                 cache_value = spend_utxo(txin.prev_hash, txin.prev_idx)
                 undo_info_append(cache_value)
                 append_hashX(cache_value[:-12])
@@ -493,12 +494,13 @@ class BlockProcessor(object):
 
             # Restore the inputs
             for txin in reversed(tx.inputs):
-                if is_gen_outpoint(txin.prev_hash, txin.prev_idx):
+                if txin.prev_idx == MINUS_1:
                     continue
+
                 n -= undo_entry_len
                 undo_item = undo_info[n:n + undo_entry_len]
                 put_utxo(txin.prev_hash + s_pack('<H', txin.prev_idx),
-                         undo_item)
+                            undo_item)
                 touched.add(undo_item[:-12])
 
         assert n == 0
