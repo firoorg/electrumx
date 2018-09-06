@@ -995,13 +995,6 @@ class ZcoinTestnet(Zcoin):
         '''Given a header return hash'''
         return double_sha256(header[:cls.BASIC_HEADER_SIZE + cls.MTP_EXTRA_BYTES])
 
-    @classmethod
-    def block(cls, raw_block, height):
-        '''Return a Block namedtuple given a raw block and its height.'''
-        header = cls.block_header(raw_block, height)
-        txs = cls.DESERIALIZER(raw_block, start=len(header)).read_tx_block()
-        return Block(raw_block, header, txs)
-
 
 class SnowGem(EquihashMixin, Coin):
     NAME = "SnowGem"
