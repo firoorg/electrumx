@@ -8,6 +8,20 @@
    should not occur with Python 3.7.
 
 
+Version 1.8.7 (13 Sep 2018)
+===========================
+
+* require aiorpcX 0.8.1
+* fix reorg bug loading blocks from disk (erasmospunk)
+
+Version 1.8.6 (12 Sep 2018)
+===========================
+
+* require aiorpcX 0.8.0
+* suppress socket.send() errors
+* new coin TokenPay (samfiragabriel)
+* minor fix: wakiyamap
+
 Version 1.8.5 (18 Aug 2018)
 ===========================
 
