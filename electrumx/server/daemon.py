@@ -19,7 +19,7 @@ from time import strptime
 import aiohttp
 
 from electrumx.lib.util import hex_to_bytes, class_logger,\
-    unpack_le_uint16_from, pack_varint
+    unpack_le_uint16_from, unpack_le_uint32_from, pack_varint
 from electrumx.lib.hash import hex_str_to_hash, hash_to_hex_str
 from electrumx.lib.tx import DeserializerDecred
 from aiorpcx import JSONRPC
@@ -457,3 +457,19 @@ class PreLegacyRPCDaemon(LegacyRPCDaemon):
     async def deserialised_block(self, hex_hash):
         '''Return the deserialised block with the given hex hash.'''
         return await self._send_single('getblock', (hex_hash, False))
+
+
+class ZcoinMtpDaemon(Daemon):
+
+    def stripMtpData(self, raw_block):
+        if self.coin.is_mtp(raw_block):
+            return raw_block[:(self.coin.MTP_HEADER_DATA_START)*2] + raw_block[self.coin.MTP_HEADER_DATA_END*2:]
+        return raw_block
+
+
+    async def raw_blocks(self, hex_hashes):
+        '''Return the raw binary blocks with the given hex hashes.'''
+        params_iterable = ((h, False) for h in hex_hashes)
+        blocks = await self._send_vector('getblock', params_iterable)
+        # Convert hex string to bytes
+        return [hex_to_bytes(self.stripMtpData(block)) for block in blocks]
