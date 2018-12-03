@@ -9,4 +9,6 @@ export HOST = 0.0.0.0
 export SSL_PORT=51002
 export TCP_PORT=51001
 
-python3.6 electrumx_server
+WD="$( cd "$(dirname "$0")" ; pwd -P )"
+
+python3.6 $WD/../electrumx_server
