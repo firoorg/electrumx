@@ -5,6 +5,7 @@ export DB_DIRECTORY=/home/electrumx/db/
 export NET=testnet
 export SSL_CERTFILE=/home/electrumx/server.crt
 export SSL_KEYFILE=/home/electrumx/server.key
+export HOST = 0.0.0.0
 export SSL_PORT=51002
 export TCP_PORT=51001
 
