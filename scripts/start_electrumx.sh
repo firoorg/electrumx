@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+export COIN=zcoin 
+export DAEMON_URL=http://YANNISCOOLUSER:YANNPASSISCOOL@localhost:18888/ 
+export DB_DIRECTORY=/home/electrumx/db/
+export NET=testnet
+export SSL_CERTFILE=/home/electrumx/server.crt
+export SSL_KEYFILE=/home/electrumx/server.key
+export SSL_PORT=51002
+export TCP_PORT=51001
+
+python3.6 electrumx_server
