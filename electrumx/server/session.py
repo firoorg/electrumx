@@ -1242,6 +1242,7 @@ class ElectrumX(SessionBase):
             'server.features': self.server_features_async,
             'server.peers.subscribe': self.peers_subscribe,
             'server.version': self.server_version,
+            'blockchain.block.headers': self.block_headers_12,
         }
 
         if ptuple >= (1, 2):
