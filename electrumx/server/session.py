@@ -974,7 +974,8 @@ class ElectrumX(SessionBase):
         cp_height = non_negative_integer(cp_height)
         raw_header_hex = (await self.session_mgr.raw_header(height)).hex()
         if cp_height == 0:
-            return raw_header_hex
+            result = {'header': raw_header_hex, 'height': str(height)}
+            return result
         result = {'header': raw_header_hex}
         result.update(await self._merkle_proof(cp_height, height))
         return result
@@ -999,7 +1000,15 @@ class ElectrumX(SessionBase):
         max_size = self.MAX_CHUNK_SIZE
         count = min(count, max_size)
         headers, count = await self.db.read_headers(start_height, count)
-        result = {'hex': headers.hex(), 'count': count, 'max': max_size}
+        hdrs80=""
+        hstart = 0
+        for h in range(start_height, start_height + count):
+            current_header = headers[hstart: hstart + 80]
+            hdrs80 += current_header.hex()
+            if self.coin.is_mtp(current_header):
+                hstart += 100;
+            hstart += 80
+        result = {'hex': hdrs80, 'count': count, 'max': max_size}
         if count and cp_height:
             last_height = start_height + count - 1
             result.update(await self._merkle_proof(cp_height, last_height))
@@ -1015,8 +1024,16 @@ class ElectrumX(SessionBase):
         index = non_negative_integer(index)
         size = self.coin.CHUNK_SIZE
         start_height = index * size
-        headers, _ = await self.db.read_headers(start_height, size)
-        return headers.hex()
+        headers, count = await self.db.read_headers(start_height, size)
+        result = ""
+        hstart = 0
+        for h in range(start_height, start_height + count):
+            current_header = headers[hstart: hstart+80]
+            result += current_header.hex()
+            if self.coin.is_mtp(current_header):
+                hstart += 100
+            hstart += 80
+        return result
 
     async def block_get_header(self, height):
         '''The deserialized header at a given height.
@@ -1243,6 +1260,7 @@ class ElectrumX(SessionBase):
             'server.peers.subscribe': self.peers_subscribe,
             'server.version': self.server_version,
             'blockchain.block.headers': self.block_headers_12,
+            'blockchain.block.header': self.block_header_13,
         }
 
         if ptuple >= (1, 2):

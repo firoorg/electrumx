@@ -263,6 +263,10 @@ class Coin(object):
         h['merkle_root'] = hash_to_hex_str(h['merkle_root'])
         return h
 
+    @classmethod
+    def is_mtp(cls, header):
+        return false;
+
 
 class AuxPowMixin(object):
     STATIC_BLOCK_HEADERS = False
