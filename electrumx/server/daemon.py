@@ -288,6 +288,10 @@ class DashDaemon(Daemon):
         '''Return the masternode status.'''
         return await self._send_single('masternodelist', params)
 
+    async def protx(self, params):
+        '''Set of commands to execute ProTx related actions.'''
+        return await self._send_single('protx', params)
+
 
 class FakeEstimateFeeDaemon(Daemon):
     '''Daemon that simulates estimatefee and relayfee RPC calls. Coin that
@@ -473,3 +477,17 @@ class ZcoinMtpDaemon(Daemon):
         blocks = await self._send_vector('getblock', params_iterable)
         # Convert hex string to bytes
         return [hex_to_bytes(self.stripMtpData(block)) for block in blocks]
+
+class SmartCashDaemon(Daemon):
+
+    async def masternode_broadcast(self, params):
+        '''Broadcast a smartnode to the network.'''
+        return await self._send_single('smartnodebroadcast', params)
+
+    async def masternode_list(self, params):
+        '''Return the smartnode status.'''
+        return await self._send_single('smartnodelist', params)
+
+    async def smartrewards(self, params):
+        '''Return smartrewards data.'''
+        return await self._send_single('smartrewards', params)

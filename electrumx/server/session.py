@@ -56,7 +56,7 @@ def non_negative_integer(value):
         value = int(value)
         if value >= 0:
             return value
-    except ValueError:
+    except (ValueError, TypeError):
         pass
     raise RPCError(BAD_REQUEST,
                    f'{value} should be a non-negative integer')
@@ -701,8 +701,8 @@ class SessionBase(RPCSession):
 class ElectrumX(SessionBase):
     '''A TCP server that handles incoming Electrum connections.'''
 
-    PROTOCOL_MIN = (1, 1)
-    PROTOCOL_MAX = (1, 4)
+    PROTOCOL_MIN = (1, 2)
+    PROTOCOL_MAX = (1, 4, 1)
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -1000,15 +1000,7 @@ class ElectrumX(SessionBase):
         max_size = self.MAX_CHUNK_SIZE
         count = min(count, max_size)
         headers, count = await self.db.read_headers(start_height, count)
-        hdrs80=""
-        hstart = 0
-        for h in range(start_height, start_height + count):
-            current_header = headers[hstart: hstart + 80]
-            hdrs80 += current_header.hex()
-            if self.coin.is_mtp(current_header):
-                hstart += 100;
-            hstart += 80
-        result = {'hex': hdrs80, 'count': count, 'max': max_size}
+        result = {'hex': headers.hex(), 'count': count, 'max': max_size}
         if count and cp_height:
             last_height = start_height + count - 1
             result.update(await self._merkle_proof(cp_height, last_height))
@@ -1153,15 +1145,27 @@ class ElectrumX(SessionBase):
         # This returns errors as JSON RPC errors, as is natural
         try:
             hex_hash = await self.session_mgr.broadcast_transaction(raw_tx)
-            self.txs_sent += 1
-            self.logger.info(f'sent tx: {hex_hash}')
-            return hex_hash
         except DaemonError as e:
             error, = e.args
             message = error['message']
             self.logger.info(f'error sending transaction: {message}')
             raise RPCError(BAD_REQUEST, 'the transaction was rejected by '
                            f'network rules.\n\n{message}\n[{raw_tx}]')
+        else:
+            self.txs_sent += 1
+            client_ver = util.protocol_tuple(self.client)
+            self.logger.info(f'sent tx: {hex_hash}')
+            return hex_hash
+
+            if client_ver != (0, ):
+                msg = self.coin.upgrade_required(client_ver)
+                if msg:
+                    self.logger.info(f'sent tx: {hex_hash}. and warned user to upgrade their '
+                                     f'client from {self.client}')
+                    return msg
+
+            self.logger.info(f'sent tx: {hex_hash}')
+            return hex_hash
 
     async def transaction_get(self, tx_hash, verbose=False):
         '''Return the serialized raw transaction given its hash
@@ -1200,13 +1204,14 @@ class ElectrumX(SessionBase):
         return branch
 
     async def transaction_merkle(self, tx_hash, height):
-        '''Return the markle branch to a confirmed transaction given its hash
+        '''Return the merkle branch to a confirmed transaction given its hash
         and height.
 
         tx_hash: the transaction hash as a hexadecimal string
         height: the height of the block it is in
         '''
         assert_tx_hash(tx_hash)
+        height = non_negative_integer(height)
         block_hash, tx_hashes = await self._block_hash_and_tx_hashes(height)
         try:
             pos = tx_hashes.index(tx_hash)
@@ -1221,6 +1226,7 @@ class ElectrumX(SessionBase):
         a block height and position in the block.
         '''
         tx_pos = non_negative_integer(tx_pos)
+        height = non_negative_integer(height)
         if merkle not in (True, False):
             raise RPCError(BAD_REQUEST, f'"merkle" must be a boolean')
 
@@ -1243,6 +1249,7 @@ class ElectrumX(SessionBase):
         handlers = {
             'blockchain.block.get_chunk': self.block_get_chunk,
             'blockchain.block.get_header': self.block_get_header,
+            'blockchain.block.headers': self.block_headers_12,
             'blockchain.estimatefee': self.estimatefee,
             'blockchain.relayfee': self.relayfee,
             'blockchain.scripthash.get_balance': self.scripthash_get_balance,
@@ -1253,24 +1260,17 @@ class ElectrumX(SessionBase):
             'blockchain.transaction.broadcast': self.transaction_broadcast,
             'blockchain.transaction.get': self.transaction_get,
             'blockchain.transaction.get_merkle': self.transaction_merkle,
+            'mempool.get_fee_histogram': self.mempool.compact_fee_histogram,
             'server.add_peer': self.add_peer,
             'server.banner': self.banner,
             'server.donation_address': self.donation_address,
             'server.features': self.server_features_async,
             'server.peers.subscribe': self.peers_subscribe,
+            'server.ping': self.ping,
             'server.version': self.server_version,
             'blockchain.block.headers': self.block_headers_12,
             'blockchain.block.header': self.block_header_13,
         }
-
-        if ptuple >= (1, 2):
-            # New handler as of 1.2
-            handlers.update({
-                'mempool.get_fee_histogram':
-                self.mempool.compact_fee_histogram,
-                'blockchain.block.headers': self.block_headers_12,
-                'server.ping': self.ping,
-            })
 
         if ptuple >= (1, 4):
             handlers.update({
@@ -1304,7 +1304,7 @@ class LocalRPC(SessionBase):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.client = 'RPC'
-        self.connection._max_response_size = 0
+        self.connection.max_response_size = 0
 
     def protocol_version_string(self):
         return 'RPC'
@@ -1323,7 +1323,9 @@ class DashElectrumX(ElectrumX):
             'masternode.announce.broadcast':
             self.masternode_announce_broadcast,
             'masternode.subscribe': self.masternode_subscribe,
-            'masternode.list': self.masternode_list
+            'masternode.list': self.masternode_list,
+            'protx.diff': self.protx_diff,
+            'protx.info': self.protx_info,
         })
 
     async def notify(self, touched, height_changed):
@@ -1455,3 +1457,113 @@ class DashElectrumX(ElectrumX):
             return [mn for mn in cache if mn['payee'] in payees]
         else:
             return cache
+
+    async def protx_diff(self, base_height, height):
+        '''
+        Calculates a diff between two deterministic masternode lists.
+        The result also contains proof data.
+
+        base_height: The starting block height (starting from 1).
+        height: The ending block height.
+        '''
+        if not isinstance(base_height, int) or not isinstance(height, int):
+            raise RPCError(BAD_REQUEST, 'expected a int block heights')
+
+        max_height = self.db.db_height
+        if (not 1 <= base_height <= max_height or
+                not base_height <= height <= max_height):
+            raise RPCError(BAD_REQUEST,
+                           f'require 1 <= base_height {base_height:,d} <= '
+                           f'height {height:,d} <= '
+                           f'chain height {max_height:,d}')
+
+        return await self.daemon_request('protx',
+                                         ('diff', base_height, height))
+
+    async def protx_info(self, protx_hash):
+        '''
+        Returns detailed information about a deterministic masternode.
+
+        protx_hash: The hash of the initial ProRegTx
+        '''
+        if not isinstance(protx_hash, str):
+            raise RPCError(BAD_REQUEST, 'expected protx hash string')
+
+        res = await self.daemon_request('protx', ('info', protx_hash))
+        if 'wallet' in res:
+            del res['wallet']
+        return res
+
+
+class SmartCashElectrumX(DashElectrumX):
+    '''A TCP server that handles incoming Electrum-SMART connections.'''
+
+    def set_request_handlers(self, ptuple):
+        super().set_request_handlers(ptuple)
+        self.request_handlers.update({
+            'smartrewards.current': self.smartrewards_current,
+            'smartrewards.check': self.smartrewards_check
+        })
+
+    async def smartrewards_current(self):
+        '''Returns the current smartrewards info.'''
+        result = await self.daemon_request('smartrewards', ['current'])
+        if result is not None:
+            return result
+        return None
+
+    async def smartrewards_check(self, addr):
+        '''
+        Returns the status of an address
+
+        addr: a single smartcash address
+        '''
+        result = await self.daemon_request('smartrewards', ['check', addr])
+        if result is not None:
+            return result
+        return None
+
+
+class AuxPoWElectrumX(ElectrumX):
+    async def block_header(self, height, cp_height=0):
+        result = await super().block_header(height, cp_height)
+
+        # Older protocol versions don't truncate AuxPoW
+        if self.protocol_tuple < (1, 4, 1):
+            return result
+
+        # Not covered by a checkpoint; return full AuxPoW data
+        if cp_height == 0:
+            return result
+
+        # Covered by a checkpoint; truncate AuxPoW data
+        result['header'] = self.truncate_auxpow(result['header'], height)
+        return result
+
+    async def block_headers(self, start_height, count, cp_height=0):
+        result = await super().block_headers(start_height, count, cp_height)
+
+        # Older protocol versions don't truncate AuxPoW
+        if self.protocol_tuple < (1, 4, 1):
+            return result
+
+        # Not covered by a checkpoint; return full AuxPoW data
+        if cp_height == 0:
+            return result
+
+        # Covered by a checkpoint; truncate AuxPoW data
+        result['hex'] = self.truncate_auxpow(result['hex'], start_height)
+        return result
+
+    def truncate_auxpow(self, headers_full_hex, start_height):
+        height = start_height
+        headers_full = util.hex_to_bytes(headers_full_hex)
+        cursor = 0
+        headers = bytearray()
+
+        while cursor < len(headers_full):
+            headers.extend(headers_full[cursor:cursor+self.coin.BASIC_HEADER_SIZE])
+            cursor += self.db.dynamic_header_len(height)
+            height += 1
+
+        return headers.hex()

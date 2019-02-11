@@ -7,14 +7,57 @@
    and memory consumption whilst serving clients.  Those problems
    should not occur with Python 3.7.
 
-.. note:: Bitcoin ABC developers have hastily introduced controversial
-   changes that break ElectrumX's block processing by requiring it to
-   be non-sequential.  Unlike others with unique requirements they
-   refused to make their code coin-specific.  ElectrumX continues to
-   require blocks be naturally ordered, and is compatible with any
-   non-CToR daemon, such as Bitcoin SV, and Bitcoin Unlimited /
-   Bitcoin XT with CToR disabled.
 
+Version 1.9.4 (07 Feb 2019)
+===========================
+
+* require aiorpcX 0.10.3
+* fix `#713`_
+
+Version 1.9.3 (05 Feb 2019)
+===========================
+
+* ignore potential sybil peers
+* coin additions / updates: BitcoinCashABC (cculianu), Monacoin (wakiyamap)
+
+Version 1.9.2 (03 Feb 2019)
+===========================
+
+* restore protocol version 1.2 and send a warning for old BTC Electrum clients that they
+  need to upgrade.  This is an attempt to protect users of old versions of Electrum from
+  the ongoing phishing attacks
+* increase default MAX_SEND for AuxPow Chains.  Truncate AuxPow for block heights covered
+  by a checkpoint.  (jeremyrand)
+* coin additions / updates: NMC (jeremyrand), Dash (zebra-lucky), PeerCoin (peerchemist),
+  BCH testnet (Mark Lundeberg), Unitus (ChekaZ)
+* tighter RPC param checking (ghost43)
+
+Version 1.9.1 (11 Jan 2019)
+===========================
+
+* fix `#684`_
+
+Version 1.9.0 (10 Jan 2019)
+===========================
+
+* minimum protocol version is now 1.4
+* coin additions / updates: BitcoinSV, SmartCash (rc125), NIX (phamels), Minexcoin (joesixpack),
+  BitcoinABC (mblunderburg), Dash (zebra-lucky), BitcoinABCRegtest (ezegom), AXE (slowdive),
+  NOR (flo071), BitcoinPlus (bushsolo), Myriadcoin (cryptapus), Trezarcoin (ChekaZ),
+  Bitcoin Diamond (John Shine),
+* close `#554`_, `#653`_, `#655`_
+* other minor tweaks (Michael Schmoock, Michael Taborsky)
+
+
+Version 1.8.12 (10 Nov 2018)
+============================
+
+* bug fix
+
+Version 1.8.11 (07 Nov 2018)
+============================
+
+* require aiorpcX 0.10.1
 
 Version 1.8.10 (05 Nov 2018)
 ============================
@@ -105,120 +148,14 @@ Version 1.8  (06 Aug 2018)
   Decred (erasmonpsunk)
 * other minor (smmalis37)
 
-Version 1.7.3  (01 Aug 2018)
-============================
-
-* fix `#538`_
-
-Version 1.7.2  (29 Jul 2018)
-============================
-
-* require aiorpcX 0.5.9; 0.5.8 didn't work on Python 3.7
-
-Version 1.7.1  (28 Jul 2018)
-============================
-
-* switch to aiorpcX 0.5.8 which implements some curio task management
-  primitives on top of asyncio that make writing correct async code
-  much easier, as well as making it simpler to reason about
-* use those primitives to restructure the peer manager, which is now
-  fully concurrent again, as well as the block processor and
-  controller
-* fix `#534`_ introduced in 1.7
-* minor coin tweaks (ghost43, cipig)
-
-Version 1.7  (25 Jul 2018)
-==========================
-
-* completely overhauled mempool and address notifications
-  implementation.  Cleaner and a lot more efficient, especially for
-  initial synchronization of the mempool.  Mempool handling is fully
-  asynchronous and doesn't hinder client responses or block
-  processing.
-* peer discovery cleaned up, more work remains
-* cleaner shutdown process with clear guarantees
-* aiohttp min version requirement raised to 2.0
-* onion peers are ignored if no tor proxy is available
-* add Motion coin (ocruzv), MinexCoin (joesixpack)
-
-Version 1.6  (19 July 2018)
-===========================
-
-* implement :ref:`version 1.4` of the protocol, with benefit for light
-  clients, particularly mobile
-* implement header proofs and merkle caches
-* implement :func:`blockchain.transaction.id_from_pos` (ghost43)
-* large refactoring of session and controller classes
-* recent blocks are now stored on disk.  When backing up in a reorg
-  ElectrumX uses these rather than asking the daemon for the blocks --
-  some daemons cannot correctly handle orphaned block requests after
-  a reorg.  Fixes `#258`_, `#315`_, `#479`_
-* minor fixes: nijel
-
-Version 1.5.2
-=============
-
-* package renamed from elctrumX-kyuupichan to electrumX
-* split merkle logic out into lib/merkle.py
-* fix `#523`_ for daemons based on older releases of core
-
-Version 1.5.1
-=============
-
-Fixes a couple of issues found in 1.5 after release:
-
-* update peer discovery code for :ref:`version 1.3` of the protocol
-* setup.py would not run in a clean environment (e.g. virtualenv)
-* logging via aiorpcX didn't work with the logging hierarchy updates
-* log Python interpreter version on startup
-
-Version 1.5
-===========
-
-.. note:: The two main scripts, :file:`electrumx_server` and
-   :file:`electrumx_rpc` were renamed to drop the `.py` suffix.  You
-   will probably need to update your run script accordingly.
-
-* support :ref:`version 1.3` of the protocol
-* increase minimum supported protocol version to :ref:`version 1.1`
-* split out history handling in preparation for new DB format
-* force close stubborn connections that refuse to close gracefully
-* RPC getinfo returns server version (erasmospunk)
-* add new masternode methods; document them all (elmora-do)
-* make electrumx a Python package (eukreign)
-* hierarchical logging, Env to take a coin class directly,
-  server_listening event (eukreign)
-* decred coin removed as mainnet does not sync
-* issues fixed: `#414`_, `#443`_, `#455`_, `#480`_, `#485`_, `#502`_,
-  `#506`_, `#519`_ (wakiyamap)
-* new or updated coins: Feathercoin (lclc), NewYorkCoin Testnet(nicovs),
-  BitZeny (wakiyamap), UFO (bushstar), GAME (cipig), MAC (nico205),
-  Xuez (ddude), ZCash (wo01), PAC (elmora-do), Koto Testnet (wo01),
-  Dash Testnet (ser), BTG all nets (wilsonmeier), Polis + ColossusXT +
-  GoByte + Monoeci (cronos-polis), BitcoinCash Regtest (eukreign)
-* minor tweaks: romanz, you21979, SuBPaR42, sangaman, wakiyamap, DaShak
-
 
 **Neil Booth**  kyuupichan@gmail.com  https://github.com/kyuupichan
 
-bitcoincash:qzxpdlt8ehu9ehftw6rqsy2jgfq4nsltxvhrdmdfpn
+1BWwXJH3q6PRsizBkSGm2Uw4Sz1urZ5sCj
 
-.. _#258: https://github.com/kyuupichan/electrumx/issues/258
-.. _#315: https://github.com/kyuupichan/electrumx/issues/315
-.. _#414: https://github.com/kyuupichan/electrumx/issues/414
-.. _#443: https://github.com/kyuupichan/electrumx/issues/443
-.. _#455: https://github.com/kyuupichan/electrumx/issues/455
-.. _#479: https://github.com/kyuupichan/electrumx/issues/479
-.. _#480: https://github.com/kyuupichan/electrumx/issues/480
-.. _#485: https://github.com/kyuupichan/electrumx/issues/485
-.. _#502: https://github.com/kyuupichan/electrumx/issues/50
-.. _#506: https://github.com/kyuupichan/electrumx/issues/506
-.. _#519: https://github.com/kyuupichan/electrumx/issues/519
 .. _#521: https://github.com/kyuupichan/electrumx/issues/521
-.. _#523: https://github.com/kyuupichan/electrumx/issues/523
-.. _#534: https://github.com/kyuupichan/electrumx/issues/534
-.. _#538: https://github.com/kyuupichan/electrumx/issues/538
 .. _#552: https://github.com/kyuupichan/electrumx/issues/552
+.. _#554: https://github.com/kyuupichan/electrumx/issues/554
 .. _#557: https://github.com/kyuupichan/electrumx/issues/557
 .. _#559: https://github.com/kyuupichan/electrumx/issues/559
 .. _#564: https://github.com/kyuupichan/electrumx/issues/564
@@ -230,3 +167,7 @@ bitcoincash:qzxpdlt8ehu9ehftw6rqsy2jgfq4nsltxvhrdmdfpn
 .. _#608: https://github.com/kyuupichan/electrumx/issues/608
 .. _#630: https://github.com/kyuupichan/electrumx/issues/630
 .. _#632: https://github.com/kyuupichan/electrumx/issues/630
+.. _#653: https://github.com/kyuupichan/electrumx/issues/653
+.. _#655: https://github.com/kyuupichan/electrumx/issues/655
+.. _#684: https://github.com/kyuupichan/electrumx/issues/684
+.. _#713: https://github.com/kyuupichan/electrumx/issues/713
