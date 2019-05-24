@@ -113,17 +113,9 @@ class Prefetcher(object):
                 if self.caught_up:
                     self.logger.info('new block height {:,d} hash {}'
                                      .format(first + count-1, hex_hashes[-1]))
-
-                result, blocks = await self._prefetch_blocks_internal(hex_hashes)
-                if not result:
-                    count = 1
-                    result, blocks = await self._prefetch_blocks_internal(hex_hashes[:1])
-                    if not result:
-                        raise DaemonError("Cannot receive blocks from the daemon process")
+                blocks = await daemon.raw_blocks(hex_hashes)
 
                 assert count == len(blocks)
-
-                print("first: ", first, " count: ", count)
 
                 # Special handling for genesis block
                 if first == 0:
@@ -145,17 +137,6 @@ class Prefetcher(object):
 
         self.refill_event.clear()
         return True
-
-
-    async def _prefetch_blocks_internal(self, hex_hashes):
-        blocks = []
-        try:
-            blocks = await self.daemon.raw_blocks(hex_hashes)
-        except asyncio.CancelledError as e:
-            if len(hex_hashes) == 1:
-                raise
-            return False, []
-        return True, blocks
 
 
 class ChainError(Exception):
