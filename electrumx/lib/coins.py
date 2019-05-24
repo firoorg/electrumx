@@ -2525,6 +2525,7 @@ class Zcoin(Coin):
     MTP_HEADER_DATA_START = Coin.BASIC_HEADER_SIZE + MTP_HEADER_EXTRA_SIZE
     MTP_HEADER_DATA_END = MTP_HEADER_DATA_START + MTP_HEADER_DATA_SIZE
     STATIC_BLOCK_HEADERS = False
+    DESERIALIZER = lib_tx.DeserializerZcoin
     DAEMON = daemon.ZcoinMtpDaemon
 
     @classmethod
