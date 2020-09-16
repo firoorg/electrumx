@@ -187,7 +187,7 @@ class BlockProcessor(object):
         # If the lock is successfully acquired, in-memory chain state
         # is consistent with self.height
         self.state_lock = asyncio.Lock()
-        self.no_utxo_height = set([293501,293511,293520,294236,293525,294874,297076])
+        self.no_utxo_height = set([302553,293501,293511,293520,294236,293525,294874,297076])
 
     async def run_in_thread_with_lock(self, func, *args):
         # Run in a thread to prevent blocking.  Shielded so that
