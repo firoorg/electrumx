@@ -23,6 +23,7 @@ from electrumx.lib.util import (
     chunks, class_logger, pack_le_uint32, pack_le_uint64, unpack_le_uint32
 )
 from electrumx.server.db import FlushData
+from electrumx.lib.hash import hex_str_to_hash
 
 
 class Prefetcher(object):
@@ -187,7 +188,12 @@ class BlockProcessor(object):
         # If the lock is successfully acquired, in-memory chain state
         # is consistent with self.height
         self.state_lock = asyncio.Lock()
-        self.no_utxo_height = set([293520,294236,293525,294874,297076])
+        self.dup_tx_hashes = {hex_str_to_hash('7702eaa0e042846d39d01eeb4c87f774913022e9958cfd714c5c2942af380569'),
+                              hex_str_to_hash('a5210b0bdfe0edaff3f1fb7ac24a379f55bbc51dcc224dc5efc04c1de8b30b2f'),
+                              hex_str_to_hash('1bf147bdaaad84364f6ff49661c66a0d7d4545c0eab2cd997d2ea0f3490393ec'),
+                              hex_str_to_hash('95e55038b16a4f6f81bbdcf3a44b0a76ffc76e395c57c0967229f26088d05fa7'),
+                              hex_str_to_hash('83890738940d7afd1f94a67db072f8fc4fdeea60c1f32e46f082f86ff4be3a48'),
+                              }
 
     async def run_in_thread_with_lock(self, func, *args):
         # Run in a thread to prevent blocking.  Shielded so that
@@ -429,8 +435,8 @@ class BlockProcessor(object):
             for txin in tx.inputs:
                 if txin.is_generation():
                     continue
-                cache_value = spend_utxo(txin.prev_hash, txin.prev_idx)
-                if self.height in self.no_utxo_height and cache_value is not None:
+                cache_value = spend_utxo(txin.prev_hash, txin.prev_idx, tx_hash)
+                if cache_value is not None:
                     undo_info_append(cache_value)
                     append_hashX(cache_value[:-12])
 
@@ -523,7 +529,7 @@ class BlockProcessor(object):
                 put_utxo(txin.prev_hash + pack_le_uint32(txin.prev_idx), undo_item)
                 touched.add(undo_item[:-12])
 
-        #assert n == 0
+        assert n == 0
         self.tx_count -= len(txs)
 
     '''An in-memory UTXO cache, representing all changes to UTXO state
@@ -580,7 +586,7 @@ class BlockProcessor(object):
     collision rate is low (<0.1%).
     '''
 
-    def spend_utxo(self, tx_hash, tx_idx):
+    def spend_utxo(self, tx_hash, tx_idx, spend_tx_hash):
         '''Spend a UTXO and return the 33-byte value.
 
         If the UTXO is not in the cache it must be on disk.  We store
@@ -621,10 +627,10 @@ class BlockProcessor(object):
                 self.db_deletes.append(udb_key)
                 return hashX + tx_num_packed + utxo_value_packed
 
-        if self.height in self.no_utxo_height:
+        if spend_tx_hash in self.dup_tx_hashes:
             return None
-        raise ChainError('UTXO {} / {:,d} not found in "h" table at height {}'
-                         .format(hash_to_hex_str(tx_hash), tx_idx, self.height))
+        raise ChainError('UTXO {}:{:,d} not found in "h" table at height {}, spend tx {}'
+                         .format(hash_to_hex_str(tx_hash), tx_idx, self.height, hash_to_hex_str(spend_tx_hash)))
 
     async def _process_prefetched_blocks(self):
         '''Loop forever processing blocks as they arrive.'''
@@ -786,7 +792,7 @@ class LTORBlockProcessor(BlockProcessor):
                 if txin.is_generation():
                     continue
                 cache_value = spend_utxo(txin.prev_hash, txin.prev_idx)
-                if self.height in self.no_utxo_height and cache_value is not None:
+                if cache_value is not None:
                     undo_info_append(cache_value)
                     add_hashXs(cache_value[:-12])
 
@@ -839,7 +845,7 @@ class LTORBlockProcessor(BlockProcessor):
                 # Get the hashX
                 hashX = script_hashX(txout.script)
                 cache_value = spend_utxo(tx_hash, idx)
-                if self.height in self.no_utxo_height and cache_value is not None:
+                if cache_value is not None:
                     add_touched(cache_value[:-12])
 
         self.tx_count -= len(txs)
