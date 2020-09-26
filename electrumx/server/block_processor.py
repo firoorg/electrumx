@@ -586,6 +586,9 @@ class BlockProcessor(object):
     collision rate is low (<0.1%).
     '''
 
+    def spend_utxo(self, tx_hash, tx_idx):
+        return self.spend_utxo(self, tx_hash, tx_idx, tx_hash)
+
     def spend_utxo(self, tx_hash, tx_idx, spend_tx_hash):
         '''Spend a UTXO and return the 33-byte value.
 
