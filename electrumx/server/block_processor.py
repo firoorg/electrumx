@@ -517,7 +517,7 @@ class BlockProcessor(object):
 
                 # Get the hashX
                 hashX = script_hashX(txout.pk_script)
-                cache_value = spend_utxo(tx_hash, idx)
+                cache_value = spend_utxo(tx_hash, idx, tx_hash)
                 touched.add(cache_value[:-12])
 
             # Restore the inputs
@@ -585,9 +585,6 @@ class BlockProcessor(object):
     be searched and resolved if necessary with the tx_num.  The
     collision rate is low (<0.1%).
     '''
-
-    def spend_utxo(self, tx_hash, tx_idx):
-        return self.spend_utxo(self, tx_hash, tx_idx, tx_hash)
 
     def spend_utxo(self, tx_hash, tx_idx, spend_tx_hash):
         '''Spend a UTXO and return the 33-byte value.
@@ -794,7 +791,7 @@ class LTORBlockProcessor(BlockProcessor):
             for txin in tx.inputs:
                 if txin.is_generation():
                     continue
-                cache_value = spend_utxo(txin.prev_hash, txin.prev_idx)
+                cache_value = spend_utxo(txin.prev_hash, txin.prev_idx, txin.prev_hash)
                 if cache_value is not None:
                     undo_info_append(cache_value)
                     add_hashXs(cache_value[:-12])
@@ -847,7 +844,7 @@ class LTORBlockProcessor(BlockProcessor):
 
                 # Get the hashX
                 hashX = script_hashX(txout.script)
-                cache_value = spend_utxo(tx_hash, idx)
+                cache_value = spend_utxo(tx_hash, idx, tx_hash)
                 if cache_value is not None:
                     add_touched(cache_value[:-12])
 
