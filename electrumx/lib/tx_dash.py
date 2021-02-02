@@ -430,7 +430,7 @@ class DeserializerZcoin(DeserializerDash):
         if tx_input.prev_idx == MINUS_1 and tx_input.prev_hash == ZERO:
             return tx_input
 
-        if tx_input.script[0] == 0xc4:  # This is a Sigma spend - mimic a generation tx
+        if tx_input.script and tx_input.script[0] == 0xc4:  # This is a Sigma spend - mimic a generation tx
             return TxInputZcoin(
                 ZERO,
                 tx_input.prev_idx,
